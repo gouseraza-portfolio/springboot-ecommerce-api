@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jsp.ecommerce.dto.LoginDto;
+import com.jsp.ecommerce.dto.MerchantDto;
 import com.jsp.ecommerce.dto.PasswordDto;
 import com.jsp.ecommerce.service.AuthService;
 
@@ -38,5 +39,10 @@ public class AuthController {
 	@PreAuthorize("hasAnyRole('ADMIN','USER','MERCHANT')")
 	public Map<String, Object> updatePassword(Principal principal,@Valid @RequestBody PasswordDto passwordDto){
 		return authService.updatePassword(principal.getName(),passwordDto.getOldPassword(),passwordDto.getNewPassword());
+	}
+	
+	@PostMapping("/merchant/register")
+	public Map<String, Object> registerMerchantAccount(@Valid @RequestBody MerchantDto merchantDto){
+		return authService.registerMerchant(merchantDto);
 	}
 }

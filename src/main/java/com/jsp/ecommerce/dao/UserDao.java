@@ -18,5 +18,8 @@ public class UserDao {
 	public void save(User user) {
 		userRepository.save(user);
 	}
+	public boolean checkEmailAndMobieDuplicate(String email, Long mobile) {
+		return userRepository.existsByEmailOrMobile(email,mobile);
+	}
 
 }
