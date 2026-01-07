@@ -36,8 +36,8 @@ public class SecurityConfig {
     }
 
 	@Bean
-	SecurityFilterChain chain(HttpSecurity httpSecurity) throws Exception {
-		return httpSecurity.httpBasic(Customizer.withDefaults())
+	SecurityFilterChain chain(HttpSecurity http) throws Exception {
+		return http
 				.csrf(x->x.disable())
 				.authorizeHttpRequests(x -> x.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
