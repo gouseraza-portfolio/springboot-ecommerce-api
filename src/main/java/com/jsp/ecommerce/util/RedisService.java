@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.jsp.ecommerce.dto.MerchantDto;
+import com.jsp.ecommerce.dto.UserDto;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,5 +21,15 @@ public class RedisService {
 
 	public void saveTempData(MerchantDto merchantDto, String email) {
 		redisTemplate.opsForValue().set(email+"_merchant", merchantDto,Duration.ofMinutes(30));
+	}
+	public void saveTempData(UserDto userDto, String email) {
+		redisTemplate.opsForValue().set(email+"_merchant", userDto,Duration.ofMinutes(30));
+	}
+	public Integer getOtp(String email) {
+		return (Integer) redisTemplate.opsForValue().get(email+"_otp");
+	}
+	
+	public MerchantDto getTempData(String email) {
+		return (MerchantDto) redisTemplate.opsForValue().get(email+"_merchant");
 	}
 }
