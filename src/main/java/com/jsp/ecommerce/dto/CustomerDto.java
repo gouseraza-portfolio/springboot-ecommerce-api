@@ -8,7 +8,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class MerchantDto {
+public class CustomerDto {
+
 	@JsonProperty(access = Access.READ_ONLY)
 	private Long id;
 	@NotEmpty(message = "Name is Required")
@@ -21,8 +22,7 @@ public class MerchantDto {
 	private Long mobile;
 	@NotEmpty(message = "Address is Required")
 	private String address;
-	@NotEmpty(message = "gstNo is Required")
-	private String gstNo;
+
 	@JsonProperty(access = Access.READ_ONLY)
 	private String status;
 }

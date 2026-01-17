@@ -11,18 +11,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.jsp.ecommerce.dao.UserDao;
-import com.jsp.ecommerce.dto.LoginDto;
+import com.jsp.ecommerce.dto.CustomerDto;
 import com.jsp.ecommerce.dto.MerchantDto;
 import com.jsp.ecommerce.dto.OtpDto;
-import com.jsp.ecommerce.dto.UserDto;
+import com.jsp.ecommerce.entity.Customer;
 import com.jsp.ecommerce.entity.Merchant;
 import com.jsp.ecommerce.entity.User;
+import com.jsp.ecommerce.mapper.UserMapper;
 import com.jsp.ecommerce.security.JwtService;
 import com.jsp.ecommerce.util.EmailService;
 import com.jsp.ecommerce.util.RedisService;
-import com.jsp.ecommerce.enums.UserRole;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -36,21 +35,20 @@ public class AuthServiceImpl implements AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final EmailService emailService;
 	private final RedisService redisService;
-	
-	
+	private final UserMapper userMapper;
+
 	@Override
-	public Map<String, Object> login(LoginDto loginDto) {
-		authenticationManager
-				.authenticate(new UsernamePasswordAuthenticationToken(loginDto.getEmail(), loginDto.getPassword()));
-		UserDetails userDetails = userDetailsService.loadUserByUsername(loginDto.getEmail());
+	public Map<String, Object> login(String email, String password) {
+		authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
+		UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 		String token = jwtService.generateToken(userDetails);
 		return Map.of("message", "Login Success", "token", token);
 	}
 
 	@Override
 	public Map<String, Object> viewUser(String email) {
-		User user =userDao.findByEmail(email);
-		return Map.of("message","Data Found","user",user);
+		User user = userDao.findByEmail(email);
+		return Map.of("message", "Data Found", "user", userMapper.toUserDto(user));
 	}
 
 	@Override
@@ -59,23 +57,9 @@ public class AuthServiceImpl implements AuthService {
 		if (passwordEncoder.matches(oldPassword, user.getPassword())) {
 			user.setPassword(passwordEncoder.encode(newPassword));
 			userDao.save(user);
-			return Map.of("message", "Password Updated Success", "user", user);
+			return Map.of("message", "Password Updated Success", "user", userMapper.toUserDto(user));
 		}
 		throw new IllegalArgumentException("Old Password Not Matching");
-	}
-
-	@Override
-	public Map<String, Object> registerMerchant(MerchantDto merchantDto) {
-		if (userDao.checkEmailAndMobieDuplicate(merchantDto.getEmail(), merchantDto.getMobile()))
-			throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
-		MerchantDto tempData = redisService.getTempData(merchantDto.getEmail());
-		if (tempData != null)
-			throw new IllegalArgumentException("Already Otp Sent First Verify It or After 30 minutes Try Again");
-		Integer otp = generateOtp();
-		emailService.sendOtpEmail(otp, merchantDto.getName(), merchantDto.getEmail());
-		redisService.saveOtp(otp, merchantDto.getEmail());
-		redisService.saveTempData(merchantDto, merchantDto.getEmail());
-		return Map.of("message","Otp Sent Succes Verify within 5 minutes");
 	}
 
 	private Integer generateOtp() {
@@ -83,21 +67,36 @@ public class AuthServiceImpl implements AuthService {
 	}
 
 	@Override
-	public Map<String, Object> verifyOtp(OtpDto dto) {
+	public Map<String, Object> registerMerchant(MerchantDto merchantDto) {
+		if (userDao.checkEmailAndMobieDuplicate(merchantDto.getEmail(), merchantDto.getMobile()))
+			throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
+		MerchantDto tempData = redisService.getTempMerchantData(merchantDto.getEmail());
+		if (tempData != null)
+			throw new IllegalArgumentException("Already Otp Sent First Verify It or After 30 minutes Try Again");
+		Integer otp = generateOtp();
+		emailService.sendOtpEmail(otp, merchantDto.getName(), merchantDto.getEmail());
+		redisService.saveOtp(otp, merchantDto.getEmail());
+		redisService.saveTempMerchantData(merchantDto, merchantDto.getEmail());
+		return Map.of("message", "Otp Sent Succes Verify within 5 minutes");
+	}
+
+	@Override
+	public Map<String, Object> verifyMerchantOtp(OtpDto dto) {
 		Integer storedOtp = redisService.getOtp(dto.getEmail());
-		MerchantDto merchantDto = redisService.getTempData(dto.getEmail());
+		MerchantDto merchantDto = redisService.getTempMerchantData(dto.getEmail());
 		if (merchantDto == null)
 			throw new IllegalArgumentException("No Account Exists recreate account");
 		if (storedOtp == null)
 			throw new IllegalArgumentException("Otp Expired, Try Resending");
 		if (storedOtp.equals(dto.getOtp())) {
-			User user = new User(null, merchantDto.getName(), merchantDto.getEmail(), merchantDto.getMobile(),
-					passwordEncoder.encode(merchantDto.getPassword()), UserRole.MERCHANT, true);
+			if (userDao.checkEmailAndMobieDuplicate(merchantDto.getEmail(), merchantDto.getMobile()))
+				throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
+
+			User user = userMapper.toUserEntity(merchantDto);
 			userDao.save(user);
-			Merchant merchant = new Merchant(null, merchantDto.getName(), merchantDto.getAddress(),
-					merchantDto.getGstNo(), user);
+			Merchant merchant = userMapper.toMerchantEntity(merchantDto, user);
 			userDao.save(merchant);
-			return Map.of("message", "Account Created Success", "user", merchant);
+			return Map.of("message", "Account Created Success", "user", userMapper.toMerchantDto(merchant));
 		} else {
 			throw new IllegalArgumentException("Otp Missmatch Try Again");
 		}
@@ -105,10 +104,12 @@ public class AuthServiceImpl implements AuthService {
 	}
 
 	@Override
-	public Map<String, Object> resendOtp(String email) {
-		MerchantDto merchantDto = redisService.getTempData(email);
+	public Map<String, Object> resendMerchantOtp(String email) {
+		MerchantDto merchantDto = redisService.getTempMerchantData(email);
 		if (merchantDto == null)
 			throw new IllegalArgumentException("No Account Exists recreate account");
+		if (userDao.checkEmailAndMobieDuplicate(merchantDto.getEmail(), merchantDto.getMobile()))
+			throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
 		int otp = generateOtp();
 		emailService.sendOtpEmail(otp, merchantDto.getName(), merchantDto.getEmail());
 		redisService.saveOtp(otp, merchantDto.getEmail());
@@ -116,18 +117,52 @@ public class AuthServiceImpl implements AuthService {
 	}
 
 	@Override
-	public Object registerUser(UserDto userDto) {
-		if (userDao.checkEmailAndMobieDuplicate(userDto.getEmail(), userDto.getMobile()))
+	public Map<String, Object> registerCustomer(CustomerDto customerDto) {
+		if (userDao.checkEmailAndMobieDuplicate(customerDto.getEmail(), customerDto.getMobile()))
 			throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
-		MerchantDto tempData = redisService.getTempData(userDto.getEmail());
+		CustomerDto tempData = redisService.getTempCustomerData(customerDto.getEmail());
 		if (tempData != null)
 			throw new IllegalArgumentException("Already Otp Sent First Verify It or After 30 minutes Try Again");
 		Integer otp = generateOtp();
-		emailService.sendOtpEmail(otp, userDto.getName(), userDto.getEmail());
-		redisService.saveOtp(otp, userDto.getEmail());
-		redisService.saveTempData(userDto, userDto.getEmail());
-		return Map.of("message","Otp Sent Succes Verify within 5 minutes");
+		emailService.sendOtpEmail(otp, customerDto.getName(), customerDto.getEmail());
+		redisService.saveOtp(otp, customerDto.getEmail());
+		redisService.saveTempCustomerData(customerDto, customerDto.getEmail());
+		return Map.of("message", "Otp Sent Succes Verify within 5 minutes");
 	}
 
+	@Override
+	public Map<String, Object> verifyCustomerOtp(OtpDto dto) {
+		Integer storedOtp = redisService.getOtp(dto.getEmail());
+		CustomerDto customerDto = redisService.getTempCustomerData(dto.getEmail());
+		if (customerDto == null)
+			throw new IllegalArgumentException("No Account Exists, recreate account");
+		if (storedOtp == null)
+			throw new IllegalArgumentException("Otp Expired, Try Resending");
+		if (storedOtp.equals(dto.getOtp())) {
+			if (userDao.checkEmailAndMobieDuplicate(customerDto.getEmail(), customerDto.getMobile()))
+				throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
+			User user = userMapper.toUserEntity(customerDto);
+			userDao.save(user);
+			Customer customer = userMapper.toCustomerEntity(customerDto, user);
+			userDao.save(customer);
+			return Map.of("message", "Account Created Success", "user", userMapper.toCustomerDto(customer));
+		} else {
+			throw new IllegalArgumentException("Otp Missmatch Try Again");
+		}
 
+	}
+
+	@Override
+	public Map<String, Object> resendCustomerOtp(String email) {
+		CustomerDto customerDto = redisService.getTempCustomerData(email);
+		if (customerDto == null)
+			throw new IllegalArgumentException("No Account Exists recreate account");
+		if (userDao.checkEmailAndMobieDuplicate(customerDto.getEmail(), customerDto.getMobile()))
+			throw new IllegalArgumentException("Already Account Exists with Email or Mobile");
+
+		int otp = generateOtp();
+		emailService.sendOtpEmail(otp, customerDto.getName(), customerDto.getEmail());
+		redisService.saveOtp(otp, customerDto.getEmail());
+		return Map.of("message", "OTP Resent Success");
+	}
 }
