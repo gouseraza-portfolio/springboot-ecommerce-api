@@ -12,4 +12,11 @@ public interface AdminService {
 
 	Map<String, Object> unblockUser(Integer id);
 
+
+	Map<String, Object> approveProduct(Long id);
+
+	Map<String, Object> getAllproducts();
+
+
+
 }

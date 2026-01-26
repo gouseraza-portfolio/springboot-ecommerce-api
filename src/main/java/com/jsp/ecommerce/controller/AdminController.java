@@ -43,4 +43,14 @@ public class AdminController {
 	public Map<String, Object> unblockUser(@PathVariable Integer id) {
 		return adminService.unblockUser(id);
 	}
+	@GetMapping("/products")
+	@PreAuthorize("hasRole('ADMIN')")
+	public Map<String, Object> viewProducts(){
+		return adminService.getAllproducts();
+	}
+	@PatchMapping("/products/approve/{id}")
+	@PreAuthorize("hasRole('ADMIN')")
+	public Map<String, Object> approveProduct(@PathVariable Long id) {
+		return adminService.approveProduct(id);
+}
 }

@@ -12,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -60,6 +61,11 @@ public class GlobalExceptionHandler {
 	public Map<String, Object> handle(NoResourceFoundException exception) {
 		return Map.of("error", "You have Enterd Wrong URL");
 	}
+	@ExceptionHandler(OutOfStockException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public Map<String, Object> handle(OutOfStockException exception) {
+		return Map.of("error", exception.getMessage());
+	}
 
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
 	@ResponseStatus(HttpStatus.NOT_FOUND)
@@ -89,6 +95,12 @@ public class GlobalExceptionHandler {
 	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
 	public Map<String, Object> handle(RuntimeException exception) {
 		return Map.of("error", "Something Went Wrong");
+	}
+	
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public Map<String, Object> handle(MissingServletRequestParameterException exception){
+		return Map.of("error",exception.getMessage());
 	}
 
 }
