@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -102,5 +104,14 @@ public class GlobalExceptionHandler {
 	public Map<String, Object> handle(MissingServletRequestParameterException exception){
 		return Map.of("error",exception.getMessage());
 	}
-
+	@ExceptionHandler(InternalAuthenticationServiceException.class)
+	@ResponseStatus(HttpStatus.FORBIDDEN)
+	public Map<String, Object> handle(InternalAuthenticationServiceException exception) {
+		return Map.of("error", "Invalid Email");
+	}
+	@ExceptionHandler(DisabledException.class)
+	@ResponseStatus(HttpStatus.FORBIDDEN)
+	public Map<String, Object> handle(DisabledException exception) {
+		return Map.of("error", "Account is Blocked Contact Admin");
+	}
 }
